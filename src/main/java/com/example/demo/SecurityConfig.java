@@ -14,6 +14,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
@@ -58,6 +59,9 @@ public class SecurityConfig {
         return http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/index").permitAll()
+                        .requestMatchers("/menu1/**").hasRole("role1")
+                        .requestMatchers("/menu2/**").hasRole("role2")
+                        .requestMatchers("/menu3/**").hasRole("role3")
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
@@ -73,6 +77,9 @@ public class SecurityConfig {
                 .logout(logout -> logout
                         .logoutSuccessHandler(logoutSuccessHandler())
                         // .logoutSuccessUrl("/index")  // 不用重新導向哪裡了
+                )
+                .exceptionHandling(ex -> ex
+                        .accessDeniedHandler(accessDeniedHandler())
                 )
                 .csrf(csrf -> csrf.disable())
                 .build();
@@ -111,4 +118,13 @@ public class SecurityConfig {
         };
     }
 
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, authentication) -> {
+            response.setContentType("application/json;charset=utf-8");
+            PrintWriter out = response.getWriter();
+            String json = "{\"status\": \"error\", \"msg\": \"權限不足\"}";
+            out.write(json);
+        };
+    }
 }
