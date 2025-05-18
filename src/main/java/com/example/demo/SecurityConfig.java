@@ -1,82 +1,114 @@
 package com.example.demo;
 
-import com.example.demo.repository.UserRepository;
-import com.example.demo.service.MyUserDetailsService;
-
+import com.example.demo.controller.SecurityController;
 import lombok.AllArgsConstructor;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 
-import java.util.List;
+import java.io.PrintWriter;
 
 @Configuration
-@AllArgsConstructor
 public class SecurityConfig {
-    private UserRepository userRepository;
-    private MyUserDetailsService myUserDetailsService;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter)
-            throws Exception {
-        return http.csrf(AbstractHttpConfigurer::disable)
-                .cors(Customizer.withDefaults())
-                .authorizeHttpRequests(
-                        auth ->
-                                auth.requestMatchers("/login", "/register", "/health-check/")
-                                        .permitAll()
-                                        .anyRequest()
-                                        .authenticated())
-                .sessionManagement(
-                        session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
-    }
-
-    @Bean
-    public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(myUserDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
-        return authProvider;
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
+    PasswordEncoder passwordEncoder() {
+        // 密碼的加密方式
         return new BCryptPasswordEncoder();
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
+    public UserDetailsService userDetailsService() {
+        InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
+
+        // 創造角色
+        UserDetails admin = User.withUsername("admin").password(passwordEncoder().encode("123")).roles("role1", "role2", "role3").build();
+        UserDetails user1 = User.withUsername("user1").password(passwordEncoder().encode("123")).roles("role1").build();
+        UserDetails user2 = User.withUsername("user2").password(passwordEncoder().encode("123")).roles("role2").build();
+        UserDetails user3 = User.withUsername("user3").password(passwordEncoder().encode("123")).roles("role3").build();
+
+        manager.createUser(admin);
+        manager.createUser(user1);
+        manager.createUser(user2);
+        manager.createUser(user3);
+
+        return manager;
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173")); // 你的前端網址
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true); // 如果要帶 Cookie 或 Authorization header
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-        return source;
+    public WebSecurityCustomizer webSecurityCustomizer() {
+        // 靜態資源可以自由訪問
+        return (web) -> web.ignoring().requestMatchers("/js/**", "/css/**", "/images/**");
     }
+
+    @Bean
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        return http
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/", "/index").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .formLogin(form -> form
+                        .loginPage("/toLogin")
+                        .usernameParameter("username")
+                        .passwordParameter("password")
+                        .loginProcessingUrl("/login")
+                        .successHandler(loginSuccessHandler())  // 登入成功處理
+                        .failureHandler(loginFailureHandler())  // 登入失敗處理
+                        // .failureUrl("/toLogin/error")  // 不用重新導向哪裡了
+                        .permitAll()
+                )
+                .logout(logout -> logout
+                        .logoutSuccessHandler(logoutSuccessHandler())
+                        // .logoutSuccessUrl("/index")  // 不用重新導向哪裡了
+                )
+                .csrf(csrf -> csrf.disable())
+                .build();
+    }
+
+    @Bean
+    public AuthenticationSuccessHandler loginSuccessHandler() {
+        // 登入成功後的處理邏輯
+        return (request, response, authentication) -> {
+            response.setContentType("application/json;charset=utf-8");
+            PrintWriter out = response.getWriter();
+            String json = "{\"status\": \"ok\", \"msg\": \"登錄成功\"}";
+            out.write(json);
+        };
+    }
+
+    @Bean
+    public AuthenticationFailureHandler loginFailureHandler() {
+        // 登入失敗後的處理邏輯
+        return (request, response, authentication) -> {
+            response.setContentType("application/json;charset=utf-8");
+            PrintWriter out = response.getWriter();
+            String json = "{\"status\": \"error\", \"msg\": \"error\"}";
+            out.write(json);
+        };
+    }
+
+    @Bean
+    public LogoutSuccessHandler logoutSuccessHandler() {
+        // 退出登入成功後的處理邏輯
+        return (request, response, authentication) -> {
+            response.setContentType("application/json;charset=utf-8");
+            PrintWriter out = response.getWriter();
+            String json = "{\"status\": \"ok\", \"msg\": \"退出登錄\"}";
+            out.write(json);
+        };
+    }
+
 }
