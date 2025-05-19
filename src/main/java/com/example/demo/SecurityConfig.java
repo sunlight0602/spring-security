@@ -59,27 +59,13 @@ public class SecurityConfig {
         return http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/index").permitAll()
-                        .requestMatchers("/menu1/**").hasRole("role1")
-                        .requestMatchers("/menu2/**").hasRole("role2")
-                        .requestMatchers("/menu3/**").hasRole("role3")
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form
                         .loginPage("/toLogin")
                         .usernameParameter("username")
                         .passwordParameter("password")
-                        .loginProcessingUrl("/login")
-                        .successHandler(loginSuccessHandler())  // 登入成功處理
-                        .failureHandler(loginFailureHandler())  // 登入失敗處理
-                        // .failureUrl("/toLogin/error")  // 不用重新導向哪裡了
                         .permitAll()
-                )
-                .logout(logout -> logout
-                        .logoutSuccessHandler(logoutSuccessHandler())
-                        // .logoutSuccessUrl("/index")  // 不用重新導向哪裡了
-                )
-                .exceptionHandling(ex -> ex
-                        .accessDeniedHandler(accessDeniedHandler())
                 )
                 .csrf(csrf -> csrf.disable())
                 .build();
@@ -92,38 +78,6 @@ public class SecurityConfig {
             response.setContentType("application/json;charset=utf-8");
             PrintWriter out = response.getWriter();
             String json = "{\"status\": \"ok\", \"msg\": \"登錄成功\"}";
-            out.write(json);
-        };
-    }
-
-    @Bean
-    public AuthenticationFailureHandler loginFailureHandler() {
-        // 登入失敗後的處理邏輯
-        return (request, response, authentication) -> {
-            response.setContentType("application/json;charset=utf-8");
-            PrintWriter out = response.getWriter();
-            String json = "{\"status\": \"error\", \"msg\": \"error\"}";
-            out.write(json);
-        };
-    }
-
-    @Bean
-    public LogoutSuccessHandler logoutSuccessHandler() {
-        // 退出登入成功後的處理邏輯
-        return (request, response, authentication) -> {
-            response.setContentType("application/json;charset=utf-8");
-            PrintWriter out = response.getWriter();
-            String json = "{\"status\": \"ok\", \"msg\": \"退出登錄\"}";
-            out.write(json);
-        };
-    }
-
-    @Bean
-    public AccessDeniedHandler accessDeniedHandler() {
-        return (request, response, authentication) -> {
-            response.setContentType("application/json;charset=utf-8");
-            PrintWriter out = response.getWriter();
-            String json = "{\"status\": \"error\", \"msg\": \"權限不足\"}";
             out.write(json);
         };
     }
